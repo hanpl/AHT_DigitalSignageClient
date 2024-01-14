@@ -3,22 +3,23 @@
         <img  alt="mainchange" class="main1 " :src="`/sources/${imagename}.png`" @error="handleImageError(imagename)" />
     </div>
     <div class="main auto" :class="{'hiden':ishiden,'hiden2':ishiden2}">
-        <video ref="videoPlayer" autoplay muted loop :src="`/sources/${videoname}.mp4`" @error="handleVideoError(videoname)"></video>
+        <video class="main1" ref="videoPlayer" autoplay muted loop :src="`/sources/${videoname}.mp4`" @error="handleVideoError(videoname)"></video>
     </div>
     <div class="main manual" :class="{'hiden':!ishiden2,'hiden2':ishiden}">
-        <video ref="videoPlayer" autoplay muted loop :src="`/sources/${videonamemanual}.mp4`" @error="handleManualError(videonamemanual)"></video>
+        <video class="main1" ref="videoPlayer" autoplay muted loop :src="`/sources/${videonamemanual}.mp4`" @error="handleManualError(videonamemanual)"></video>
     </div>
   </template>
 
 <script>
-
+import * as signalR from "@microsoft/signalr";
 export default {
   data() {
       return {
         imagename: "AHT/AHTBG",
         videoname: "AHT/AHTBG",
         videonamemanual: "AHT/AHTBG",
-        ishiden: false, ishiden2: false, // f&f == auto, t&f == gatechange, f&t == manual
+        ishiden: false, 
+        ishiden2: false, // f&f == auto, t&f == gatechange, f&t == manual
         location:"",
         name:"",
         count: 0,
@@ -36,28 +37,33 @@ export default {
     mounted() {
         this.ClearCache();
         this.intervalId = setInterval(this.incrementCount, 30000);
+        this.hubConnection = new signalR.HubConnectionBuilder()
+            .withUrl('https://localhost:7248/dashboardHub')
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+        this.hubConnection.start().then(() => {
+            console.log("SignalR connection");
+            //this.reload();
+            }).catch(err => console.error("Signalr Connection failed start:", err));
     },
     beforeDestroy() {
         clearInterval(this.intervalId);
     },
     methods: {
         handleImageError(imagename) {
-         this.imagename = 'AHT/AHTBG'; 
+         this.imagename = 'AHT/AHTBG';
          console.log(imagename);
         },
         handleVideoError(videoname){
-            this.videoname = "OZ/OZ_NOEGATE_PRE_LEFT",
+            this.videoname = "AHT/AHTBG",
             console.log(videoname);
         },
         handleManualError(videonamemanual){
-            this.videonamemanual = "OZ/OZ_NOEGATE_PRE_RIGHT",
+            this.videonamemanual = "AHT/AHTBG",
             console.log(videonamemanual);
         },
         ClearCache() {
-          //console.log("Pre Cleare Cache...");
-          // Xóa cache trong trình duyệt
           //window.location.reload(true);
-          // Xóa cache trong Service Workers (nếu có)
           if ('caches' in window) {
            caches.keys().then(function(cacheNames) {
             cacheNames.forEach(function(cacheName) {
@@ -68,8 +74,6 @@ export default {
           }   
         },
         incrementCount() {
-          this.count++;
-          console.log(this.count);
           this.fetchData();
         },
         fetchData(){
@@ -80,12 +84,18 @@ export default {
             headers.append('Pragma', 'no-cache');
             headers.append('Expires', '0');
             const url = `https://localhost:7079/api/DigitalSignage/${counter}/${leftright}`;
-            fetch(url) // Thay đổi URL thành URL của API bạn muốn gọi
+            fetch(url)
             .then(response => response.json())
             .then(data  => {
                 if(data.length>0){
+                    this.ishiden = data[0].gateChange != "No" ? true:false;
+                    this.ishiden2 = data[0].auto != "No" ? true:false;
+                    if(data[0].auto != "No"){
+                        this.ishiden = false;
+                    }
                     const secondValue = data[0].lineCode+"/"+data[0].lineCode+"_"+(data[0].modeNow == "No"?"NOEGATE":"EGATE")+"_"+(((data[0].remark=="On time")||(data[0].remark=="Delayed")) ? "PRE":"BOARD")+"_"+leftright;
                     this.videoname= secondValue;
+                    this.videonamemanual = data[0].liveAuto!=""? "Manual/"+data[0].liveAuto:"AHT/AHTBG";
                     console.log(secondValue);
                 }
                 })
@@ -113,6 +123,11 @@ body {
 }
 .hiden2 {
     display: none;
+}
+.main1 {
+    max-width: 100vw;
+    height: auto;
+
 }
 
 </style>
