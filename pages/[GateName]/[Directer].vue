@@ -25,6 +25,8 @@ export default {
         count: 0,
         responseData:"",
         intervalId: null,
+        intervalIdReload: null,
+        intervalId1: null,
 
       };
     },
@@ -38,6 +40,7 @@ export default {
         this.ClearCache();
         this.intervalId = setInterval(this.incrementCount, 30000);
         this.hubConnection = new signalR.HubConnectionBuilder()
+            //.withUrl('http://172.17.18.12:8281/dashboardHub')
             .withUrl('https://localhost:7248/dashboardHub')
             .configureLogging(signalR.LogLevel.Information)
             .build();
@@ -45,6 +48,11 @@ export default {
             console.log("SignalR connection");
             //this.reload();
             }).catch(err => console.error("Signalr Connection failed start:", err));
+        // Sự kiện khi kết nối đến hub bị đóng lại
+        this.hubConnection.onclose(() => {
+            console.log("Connection closed");
+            this.startInterval();
+        });
     },
     beforeDestroy() {
         clearInterval(this.intervalId);
@@ -74,7 +82,23 @@ export default {
           }   
         },
         incrementCount() {
+          this.ClearCache();
           this.fetchData();
+        },
+
+        startInterval() {
+            this.intervalId1 = setInterval(() => {
+                this.reconnectHub();
+            }, 40000);
+            },
+        stopInterval() {
+            clearInterval(this.intervalId1);
+            },
+        reconnectHub() {
+            this.hubConnection.start().then(() => {
+            console.log("SignalR reconnection");
+            this.stopInterval();
+            }).catch(err => console.error("Signalr ReConnection failed start:", err));
         },
         fetchData(){
             const counter =  this.location;
@@ -83,6 +107,7 @@ export default {
             headers.append('Cache-Control', 'no-cache, no-store, must-revalidate');
             headers.append('Pragma', 'no-cache');
             headers.append('Expires', '0');
+            //const url = `http://172.17.18.12:8085/api/DigitalSignage/${counter}/${leftright}`;
             const url = `https://localhost:7079/api/DigitalSignage/${counter}/${leftright}`;
             fetch(url)
             .then(response => response.json())
@@ -93,7 +118,7 @@ export default {
                     if(data[0].auto != "No"){
                         this.ishiden = false;
                     }
-                    const secondValue = data[0].lineCode+"/"+data[0].lineCode+"_"+(data[0].modeNow == "No"?"NOEGATE":"EGATE")+"_"+(((data[0].remark=="On time")||(data[0].remark=="Delayed")) ? "PRE":"BOARD")+"_"+leftright;
+                    const secondValue = data[0].lineCode+"/"+data[0].lineCode+"_"+(data[0].modeNow == "No"?"NOEGATE":"EGATE")+"_"+(((data[0].remark=="On time")||(data[0].remark=="Delayed")) ? "BOARD":"PRE")+"_"+leftright;
                     this.videoname= secondValue;
                     this.videonamemanual = data[0].liveAuto!=""? "Manual/"+data[0].liveAuto:"AHT/AHTBG";
                     console.log(secondValue);
@@ -103,6 +128,12 @@ export default {
                 // Xử lý lỗi nếu có
                 console.error(error);
             });
+        },
+        reload(){
+            this.hubConnection.on("ReceivedClientChanged", (connect, message) => {
+            console.log(connect+message);
+            this.fetchData();
+            }); 
         },
 
     },
