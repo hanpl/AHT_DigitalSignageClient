@@ -38,15 +38,16 @@ export default {
     },
     mounted() {
         this.ClearCache();
-        this.intervalId = setInterval(this.incrementCount, 30000);
+        this.intervalId = setInterval(this.incrementCount, 100000);
         this.hubConnection = new signalR.HubConnectionBuilder()
-            //.withUrl('http://172.17.18.12:8281/dashboardHub')
-            .withUrl('https://localhost:7248/dashboardHub')
+            .withUrl('http://172.17.18.12:8281/dashboardHub')
+            //.withUrl('https://localhost:7248/dashboardHub')
             .configureLogging(signalR.LogLevel.Information)
             .build();
         this.hubConnection.start().then(() => {
             console.log("SignalR connection");
-            //this.reload();
+            this.reload();
+            this.loadModeAuto();
             }).catch(err => console.error("Signalr Connection failed start:", err));
         // Sự kiện khi kết nối đến hub bị đóng lại
         this.hubConnection.onclose(() => {
@@ -97,6 +98,8 @@ export default {
         reconnectHub() {
             this.hubConnection.start().then(() => {
             console.log("SignalR reconnection");
+            this.reload();
+            this.loadModeAuto();
             this.stopInterval();
             }).catch(err => console.error("Signalr ReConnection failed start:", err));
         },
@@ -107,8 +110,8 @@ export default {
             headers.append('Cache-Control', 'no-cache, no-store, must-revalidate');
             headers.append('Pragma', 'no-cache');
             headers.append('Expires', '0');
-            //const url = `http://172.17.18.12:8085/api/DigitalSignage/${counter}/${leftright}`;
-            const url = `https://localhost:7079/api/DigitalSignage/${counter}/${leftright}`;
+            const url = `http://172.17.18.12:8085/api/DigitalSignage/${counter}/${leftright}`;
+            //const url = `https://localhost:7079/api/DigitalSignage/${counter}/${leftright}`;
             fetch(url)
             .then(response => response.json())
             .then(data  => {
@@ -118,10 +121,14 @@ export default {
                     if(data[0].auto != "No"){
                         this.ishiden = false;
                     }
-                    const secondValue = data[0].lineCode+"/"+data[0].lineCode+"_"+(data[0].modeNow == "No"?"NOEGATE":"EGATE")+"_"+(((data[0].remark=="On time")||(data[0].remark=="Delayed")) ? "BOARD":"PRE")+"_"+leftright;
+                    const secondValue = data[0].lineCode+"/"+data[0].lineCode+"_"+(data[0].modeNow == "No"?"NOEGATE":"EGATE")+"_"+(((data[0].remarkNo=="On time")||(data[0].remarkNo=="Delayed")) ? "PRE":"BOARD")+"_"+leftright;
                     this.videoname= secondValue;
-                    this.videonamemanual = data[0].liveAuto!=""? "Manual/"+data[0].liveAuto:"AHT/AHTBG";
-                    console.log(secondValue);
+                    this.videonamemanual = data[0].liveAuto !=""? "Manual/"+data[0].liveAuto:"AHT/AHTBG";
+                    console.log(secondValue+"  "+this.videonamemanual);
+                }
+                else{
+                    console.log("nogate");
+                    this.videoname = "AHT/AHTBG";
                 }
                 })
             .catch(error => {
@@ -133,6 +140,23 @@ export default {
             this.hubConnection.on("ReceivedClientChanged", (connect, message) => {
             console.log(connect+message);
             this.fetchData();
+            }); 
+        },
+        loadModeAuto(){
+            this.hubConnection.on("ReceivedLoadModeAuto", (connect, message) => {
+            console.log(connect+"---"+message);
+            if(connect == "Yes"){
+                this.ishiden = false;
+                this.ishiden2 = true;
+                console.log(this.ishiden+this.ishiden2);
+                this.videonamemanual = message !=""? "Manual/"+message:"AHT/AHTBG";
+            }
+            else
+            {
+                this.ishiden = false;
+                this.ishiden2 = false;
+                this.videonamemanual = message !=""? "Manual/"+message:"AHT/AHTBG";
+            }
             }); 
         },
 
